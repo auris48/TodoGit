@@ -2,67 +2,55 @@ const express = require("express");
 const router = express.Router();
 const Todo = require("../model/todo");
 
-const todosDatabase = [];
-let idCounter = 1;
+function isJsonData(request, response, next) {
+  if (request.headers["content-type"] !== "application/json") {
+    response.status(400).send("Bad request");
+  }
+  next();
+}
 
-app.get("/", (request, response) => {
-  response.json(todosDatabase);
+router.get("/", async (request, response, next) => {
+  response.json(await Todo.find());
 });
 
-app.post("/", (request, response) => {
-  const data = request.body;
-  const todo = new Todo(
-    idCounter++,
-    data.name,
-    data.description,
-    data.priority,
-    data.dueDate,
-    data.status
-  );
-
-  console.log(todo);
-  todosDatabase.push(todo);
-  response.status(201).json(todo);
+router.post("/", async (request, response, next) => {
+  try {
+    const todo = new Todo(request.body);
+    await todo.save();
+    response.status(201).setHeader("Location", `/Todo/${todo.id}`).json(todo);
+  } catch (error) {
+    next(error);
+  }
 });
 
-app.get("/:id", (request, response) => {
-    const id = parseInt(request.params.id);
-    const todo = todosDatabase.find((t) => t.id === id);
-    if (todo) {
-        response.status(200).json(todo);
-        }
-    else {
-        response.status(404).send("Todo not found");
-    }
+router.get("/:id", isJsonData, async (request, response, next) => {
+  const todo = await Todo.findById(request.params.id);
+  if (todo) {
+    response.status(200).json(todo);
+  } else {
+    next(new TodoNotFoundError(request.params.id));
+  }
 });
 
-app.put("/:id", (request, response) => {
-    const id = parseInt(request.params.id);
-    const updatedTodo = request.body;
-    const todo = todosDatabase.find((t) => t.id === id);
-    if (todo) {
-        todo.name = updatedTodo.name || todo.name;
-        todo.description = updatedTodo.description || todo.description;
-        todo.priority = updatedTodo.priority || todo.priority;
-        todo.dueDate = updatedTodo.dueDate || todo.dueDate;
-        todo.status = updatedTodo.status || todo.status;
-        response.status(200).json(todo);
-    }
-    else {
-        response.status(404).send("Todo not found");
-    }
+router.put("/:id", isJsonData, async (request, response, next) => {
+  const todo = await Todo.updateOne({ _id: request.params.id }, request.body);
+  if (todo) {
+    response.status(200).json(todo);
+  } else {
+    next(new TodoNotFoundError(request.params.id));
+  }
 });
 
-app.delete("/:id", (request, response) => {
-    const id = parseInt(request.params.id);
-    const todoIndex = todosDatabase.findIndex((t) => t.id === id);
-    if (todoIndex === -1) {
-        response.status(404).send("Todo not found");
-    }
-    else {
-        todosDatabase.splice(todoIndex, 1);
-        response.sendStatus(200);
-    }
+//request code later
+router.delete("/:id", async (request, response, next) => {
+  const todo = await Todo.findByIdAndDelete({ _id: request.params.id });
+  if (todo) {
+    response.status(200).json(todo);
+  } else {
+    next(new TodoNotFoundError(request.params.id));
+  }
 });
 
 module.exports = router;
+//http later code
+// const express = require("express");
